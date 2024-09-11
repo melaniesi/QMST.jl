@@ -1,5 +1,5 @@
 # QMST.jl
-Package to compute lower bounds on the quadratic minimum spanning tree.
+Package to compute lower bounds on the quadratic minimum spanning tree problem.
 The quadratic minimum spanning tree problem is to find a spanning tree $T$ in a graph $G$ minimizing the cost function
 ```math
 \sum_{e \in E(T)} \sum_{f \in E(T)} Q_{ef},
@@ -29,4 +29,4 @@ Further examples can be found in the folder [`examples/`](examples/) of this pro
 ### References
 This package is part of the publication
 
-Frank de Meijer, Melanie Siebenhofer, Renata Soritov, Angelika Wiegele. (2024). _Integer Semidefinite Programming for the Quadratic Minimum Spanning Tree problem._ [Manuscript in preparation].
+Frank de Meijer, Melanie Siebenhofer, Renata Sotirov, Angelika Wiegele. (2024). _Integer Semidefinite Programming for the Quadratic Minimum Spanning Tree problem._ [Manuscript in preparation].
