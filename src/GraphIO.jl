@@ -20,6 +20,51 @@ using SparseArrays
 
 export readInput_qmstp
 
+"""
+    readInput_qmstp(filepath, threshold=100000)
+
+Read input of QMST instances of one of the three formats and return
+the number of vertices, the number of edges, a list of Tuples representing the edges
+and the cost matrix `Q`.
+
+## Format 1
+```
+m n
+i1 j1
+i2 j2
+.  .
+.  .
+.  .
+im jm
+q11 q12 ... q1m
+ .   .       .
+ .      .    .
+ .         . .
+qm1 qm2 ... qmm
+```
+## Format 2
+(m = n(n-1)/2, non-existing edges have weights `threshold`)
+```
+m n
+q11 q12 ... q1m
+ .   .       .
+ .      .    .
+ .         . .
+qm1 qm2 ... qmm
+```
+
+## Format 3
+```
+param n := 4 ;
+param m := 5 ;
+set Edges := (1,2) (1,3) (1,4) (2,4) (3,4);
+param c := [1,2] 3 [1,3] 2 [1,4] 1 [2,4] 3 [3,4] 10;
+param q := [1,2,1,3] 7 [1,2,1,4] 2 [1,2,2,4] 8 [1,2,3,4] 3 [1,3,1,4] 7 [1,3,2,4] 5 
+[1,3,3,4] 1 [1,4,2,4] 5 [1,4,3,4] 8 [2,4,3,4] 4;
+```
+In this format, the edge costs are given in `c`  and the interaction costs between
+two edges is given in `q`.
+"""
 function readInput_qmstp(filepath, threshold=100000)
     io = open(filepath, "r")
     readline(io)
@@ -38,6 +83,27 @@ function readInput_qmstp(filepath, threshold=100000)
     end
 end
 
+"""
+    readInput_SVFormat(filepath)
+
+Read the input of QMSTP instances of the format
+```
+m n
+i1 j1
+i2 j2
+.  .
+.  .
+.  .
+im jm
+q11 q12 ... q1m
+ .   .       .
+ .      .    .
+ .         . .
+qm1 qm2 ... qmm
+```
+stored in `filepath` and return the number of vertices, the number of edges,
+a list of the edges represented as Tuples of two integers and the cost matrix `Q`.
+"""
 function readInput_SVFormat(filepath)
     io = open(filepath, "r")
     n, m = parse.(Int64, split(readline(io), " ", keepempty=false))
@@ -72,14 +138,14 @@ end
 """
     readInput_givenCostMatrix(filepath)
 
-Reads the input of QMSTP instances of the format
+Read the input of QMSTP instances of the format
 m n
 q11 q12 ... q1m
  .   .       .
  .      .    .
  .         . .
 qm1 qm2 ... qmm
-stored in `filepath` and returns `n` and `Q`.
+stored in `filepath` and return `n` and `Q`.
 It is assumed that the graph is complete, hence
 m = n(n-1)/2.
 """
@@ -112,13 +178,16 @@ end
 """
     getSmallerQAndEdgelist(Q, n, threshold)
 
-Reduces the quadratic cost matrix by removing all
-rows/columns corresponding to edges for which all
-quadratic costs with another edge are equal to
-`threshold`.
+Reduce the quadratic cost matrix by removing all
+rows and columns corresponding to edges for which all
+quadratic costs with other edges are equal to
+`threshold`. Returns the reduces matrix `Q`, and a list
+of the remaining edges represented as tuples of vertices
+with the first entry being the smaller one.
+
 It is assumed that `Q` is the quadratic cost matrix
-of the complete graph, i.e., of dimension m×m with
-m = `n`(`n`-1)/2.
+of the complete graph, i.e., of dimension `m × m` with
+`m = n(n - 1)/2`.
 """
 function getSmallerQAndEdgelist(Q, n, threshold)
     nC2 = size(Q,1)
@@ -129,7 +198,7 @@ end
 """
     readInput_givenEdgesAndCostMatrix(filepath)
 
-Reads the input of QMSTP instances of the format
+Read the input of QMSTP instances of the format
 m n
 edge_1_i edge_1_j
 edge_2_i edge_2_j
@@ -140,7 +209,7 @@ q11 q12 ... q1m
  .      .    .
  .         . .
 qm1 qm2 ... qmm
-stored in `filepath` and returns `n`, `Q` and a list 
+stored in `filepath` and return `n`, `Q` and a list 
 `edges` of tuples representing the edges.
 """
 function readInput_givenEdgesAndCostMatrix(filepath)
@@ -173,9 +242,9 @@ end
 """
     readInput_aqmstp4qmstp(filepath)
 
-Reads the input of AQMSTP instances provided by Pereira at
+Read the input of AQMSTP instances provided by Pereira at
 https://github.com/dilsonpereira/AQMSTP_Instances
-and returns the number of vertices `n`, the number of edges `m`,
+and return the number of vertices `n`, the number of edges `m`,
 a list of the edges and the quadratic cost matrix `Q` of dimension
 `m × m`.
 
@@ -249,13 +318,12 @@ end
 """
     readInput_AQMSTP(filepath)
 
-Reads the input of AQMSTP instances provided by Pereira at
+Read the input of AQMSTP instances provided by Pereira at
 https://github.com/dilsonpereira/AQMSTP_Instances
 and return the number of vertices `n`,
 a dictionary `edges` of the enumerated edges in the graph
 and the edge tuple as key, linear costs `c` on the edges
 and quadratic costs `Q`.
-
 """
 function readInput_AQMSTP(filepath)
     # we assume that edges are always given as Tuple
