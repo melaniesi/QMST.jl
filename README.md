@@ -21,7 +21,7 @@ julia> using QMST.GraphIO
 julia> instancefilepath = "path/to/instance/qmstp_CP10_100_10_10.dat"; # set path instance
 julia> n, m, edges, Q = readInput_qmstp(instancefilepath);
 julia> params = Parameters(get_param_beta(Q), 0.9, 1, 1e-4, 10800, max_newRLTcuts=m, min_newRLTcuts=10, epsilon_cutviolations=1e-3);
-julia> result = run_admm(Q, n, edges, params; trace_constraint=true, sPRSM=true, frequ_output=30);
+julia> result = run_admm(Q, n, edges, params; trace_constraint=true, PRSM=true, frequ_output=30);
 ```
 
 Further examples can be found in the folder [`examples/`](examples/) of this project.
