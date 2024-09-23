@@ -20,4 +20,4 @@ using QMST.GraphIO
 instancefilepath = "../../04_Data/QMSTPInstances/CP3/qmstp_CP10_100_100_10.dat"
 n, m, edges, Q = readInput_qmstp(instancefilepath);
 params = Parameters(get_param_beta(Q), 0.9, 1, 1e-4, 10800, max_newRLTcuts=m, min_newRLTcuts=10, epsilon_cutviolations=1e-3);
-result = run_admm(Q, n, edges, params; trace_constraint=true, sPRSM=true, frequ_output=30)
+result = run_admm(Q, n, edges, params; trace_constraint=true, PRSM=true, frequ_output=30)

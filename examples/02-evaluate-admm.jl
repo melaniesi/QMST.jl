@@ -46,7 +46,7 @@ function evaluate_admm(filepath, writelogfile=true, movetoprocessed=true)
     n, m, edges, Q = readInput_qmstp(filepath)
     Q = hcat(vcat(Q, zeros(1, m)), zeros(m+1,1))
     params = get_params(Q, get_param_beta)
-    result = run_admm(Q, n, edges, params; trace_constraint=true, sPRSM=true, frequ_output=100)
+    result = run_admm(Q, n, edges, params; trace_constraint=true, PRSM=true, frequ_output=100)
     if writelogfile || movetoprocessed
         filename = split(filepath, "/")[end]
         instancename = split(filename, ".", keepempty=false)[begin]

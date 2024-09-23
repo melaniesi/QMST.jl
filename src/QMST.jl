@@ -34,6 +34,31 @@ export Parameters, get_param_beta, run_admm
 
 intmax = Int(maxintfloat())
 
+"""
+    Parameters(beta, gamma1, gamma2, epsilon, max_time=intmax; max_outerloops=15, epsilon_cutviolations=1e-3,
+                max_newRLTcuts=500, min_newRLTcuts=30, epsilon_dykstra=epsilon/10, epsilon_lbimprov=1e-3,
+                max_iterationstotal=intmax)
+
+Structure containing parameters for the PRSM to compute a lower bound on the QMSTP.
+
+# Fields:
+-    `beta::Float64`: penalty parameter of the augmented Lagranian
+-    `gamma1::Float64`: stepsize first update, in the range `[-1,1]`
+-    `gamma2::Float64`: stepsize second update, in the range `(0, (1 + sqrt(5))/2)`, fulfills `gamma1 + gamma2 > 0`
+                        and `|gamma1| < 1 + gamma2 - gamma2^2`.
+-    `epsilon::Float64`: epsilon for primal and dual relative error to stop algorithm
+-    `max_time::Int`: maximum execution time in seconds
+-    `max_outerloops::Int`: maximum number of outer loops
+-    `epsilon_violation::Float64`: threshold for RLT cut-set constraints to be considered violated
+-    `max_newRLTcuts::Int`: maximum number of new cuts to be added in one outer loop
+-    `min_newRLTcuts::Int`: minimum number of new cuts to be added to continue iterating the outer loop (separate new
+                            violated constraints)
+-    `epsilon_dykstra::Float64`: threshold to stop Dykstra's algorithm when the norm of two consecutive matrices is below that value,
+                                 should be smaller than `epsilon`.
+-    `epsilon_lbimprov::Float64`: minimum improvement of the valid lower bound of two consecutive outer loops to keep
+                                  iterating in the outer loop
+-    `max_iterationstotal::Int`:  maximum number of total ADMM iterations
+"""
 struct Parameters
     beta::Float64
     gamma1::Float64
@@ -53,6 +78,11 @@ struct Parameters
                 epsilon_dykstra, epsilon_lbimprov, max_iterationstotal)
 end
 
+"""
+    get_param_beta(Q)
+
+Compute a good estimate on the penalty parameter β based on the cost matrix `Q`.
+"""
 function get_param_beta(Q)
     mp1 = size(Q,1)
     normQ = norm(Q)
@@ -62,8 +92,31 @@ function get_param_beta(Q)
     return guessbeta
 end
 
-function run_admm(Q, n::Int, edges, params::Parameters; trace_constraint::Bool=true, sPRSM=false,
-                                                        frequ_output=20, ub = Inf)
+"""
+    run_admm(Q, n::Int, edges, params::Parameters)
+
+Compute a lower bound on the quadratic minimum spanning tree problem using an ADMM algorithm.
+
+# Arguments:
+- `Q::Matrix`: cost matrix of the interaction costs between edges in the graph
+- `n::Int`: the number of vertices in the graph
+- `edges::Vector{Tuple{Int,Int}}`: list of edges in graph
+- `params::Parameters`: parameters for the algorithm
+
+# Keyword Arguments:
+- `trace_constraint::Bool=true`: Indicate whether the trace constraint is included in \$\\mathcal\{Y\}\$.
+- `PRSM=true`: if `PRSM=true`, the PRSM is used and else, the Douglas Rachford algorithm is applied.
+- `frequ_output=20`: The number of iterations after which a line of output is printed.
+- `ub=Inf`: It is possible to provide an upper bound on the QMSTP.
+
+# Output:
+Returns a dictionary with information on the lower bound and the DNN lower bound without cuts and the time needed 
+to compute the lower bound, the number of iterations, the matrices Y, R and S.
+The (not valid) primal and dual objective values. The number of outer iterations, the solution status,
+the number of cuts added, and the number of Dykstra clusters.
+"""
+function run_admm(Q, n::Int, edges, params::Parameters; trace_constraint::Bool=true, PRSM=true,
+                                                        frequ_output=20, ub=Inf)
     mp1 = size(Q, 1)
     m = mp1 - 1
 
@@ -75,7 +128,7 @@ function run_admm(Q, n::Int, edges, params::Parameters; trace_constraint::Bool=t
     beta = params.beta
     max_iterationstotal = params.max_iterationstotal
     @assert beta > 0
-    if sPRSM
+    if PRSM
         @assert -1 < gamma1 < 1 && 0 < gamma2 < (1 + sqrt(5))/2
         @assert gamma1 + gamma2 > 0
         @assert abs(gamma1) < 1 + gamma2 - gamma2^2
@@ -141,8 +194,8 @@ function run_admm(Q, n::Int, edges, params::Parameters; trace_constraint::Bool=t
                                 projection_PSD_cone(V' * (Symmetric(Y + 1/beta * S) * V))
             VU_R = V * U_R
             VRVt = Symmetric(VU_R * diagm(d_R) * VU_R')  #VRVt = V * R * V'
-            # if sPRSM
-            if sPRSM
+            # if PRSM
+            if PRSM
                 S += (gamma1 * beta) * (Y - VRVt)
             end
             if counter_outerloops > 1
@@ -277,7 +330,24 @@ function run_admm(Q, n::Int, edges, params::Parameters; trace_constraint::Bool=t
     return results
 end
 
+"""
+    compute_safe_lowerbound_new(Q, n, Sout, V, VtSoutV)
 
+Computes a safe lower bound on the QMSTP based on the output `Sout` from the PRSM algorithm.
+
+# Arguments:
+- `Q::Matrix`: the cost matrix of dimension `|E| × |E|`.
+- `n::Int`: the number of vertices in the graph
+- `Sout::Matrix`: the matrix obtained at the end of the PRSM
+- `V::Matrix`: the matrix used for facial reduction
+- `VtSoutV`: the matrix `V' * Sout * V`
+
+# Keyword Arguments:
+- `trace_constraint=true`: Indicate whether the trace constraint is included in \$\\mathcal\{Y\}\$.
+- `violated_cuts=missing`: list of all the violated cuts added in the form of tuples `(f,i) ∈ E × V`.
+- `edges_adjtoi::Vector{Vector{Int}}`: vector of length `n` containing at position `i` a list of the edges adjacent
+                                        to the vertex `i`.
+"""
 function compute_safe_lowerbound_new(Q, n, Sout, V, VtSoutV; trace_constraint=true, violated_cuts=missing, edges_adjtoi=missing)
     mp1 = size(Q,1)
     m = mp1 - 1
@@ -313,12 +383,22 @@ function compute_safe_lowerbound_new(Q, n, Sout, V, VtSoutV; trace_constraint=tr
     return objective_value(model)
 end
 
+"""
+    symm_norm(A::Symmetric)
 
+Compute the Frobenius norm of a symmetric matrix.
+"""
 function symm_norm(A::Symmetric)
     return sqrt(dot(A,A))
 end
 
+"""
+    initialize_matricesADMM(n, m)
 
+Initialize the matrices `Y` and `S` for the PRSM algorithm.
+
+Returns `(Y, S)`.
+"""
 function initialize_matricesADMM(n, m)
     Y = (n - 1) * (n - 2) / (m * (m - 1)) * ones(m + 1, m + 1)
     entry = (n - 1) / m
@@ -331,7 +411,26 @@ function initialize_matricesADMM(n, m)
     return Y, S
 end
 
+"""
+    add_newviolatedcuts!(violated_cuts::SortedSet, max_newcuts, Y, n, edges_adjtoi)
 
+Separate new violated cuts from `Y`, add them to `violated_cuts` and return the number
+of new cuts added.
+
+The `max_newcuts` most violated cuts are added to `violated_cuts` in the form (f, i)
+representing the RLT type cut-set constraint \$ \\sum_{e ∈ δ(i)} y_e ≥ y_f \$.
+
+# Arguments:
+- `violated_cuts::SortedSet`: sorted set containing tuples of the form (f, i) representing constraints already added
+                              to the problem
+- `max_newcuts`: the maximum number of new cuts to be added
+- `Y`:           matrix of dimension `m × m` used for separation
+- `edges_adjtoi::Vector{Vector{Int}}`: contains at position `i` a list of the edges adjacent
+                                       to the vertex `i`. 
+
+# Keyword Arguments:
+- `eps_viol=1e-4`: threshold of violation for cuts to be considered violated
+"""
 function add_newviolatedcuts!(violated_cuts::SortedSet, max_newcuts, Y, n, edges_adjtoi; eps_viol=1e-4)
     if max_newcuts ≤ 0 return 0; end
     m = size(Y, 1) - 1
@@ -358,7 +457,18 @@ function add_newviolatedcuts!(violated_cuts::SortedSet, max_newcuts, Y, n, edges
     return n_addedcuts
 end
 
+"""
+    get_lists_violatededgesvertices(violation_tuples::SortedSet)
 
+Separate `violation_tuples` into a list of the edges `f` and the vertices `i` of the cuts in `violation_tuples`.
+
+# Arguments:
+- `violation_tuples`: Set of constraints stored in the form of tuples `(f,i) ∈ E × V`.
+
+# Output:
+Returns `edges_viol`, `verts_viol` that is two vectors of the same length as the cardinality of `violation_tuples`
+and for each index `k`, the tuple `(edges_viol[k], verts_viol[k])` is contained in `violation_tuples`.
+"""
 function get_lists_violatededgesvertices(violation_tuples::SortedSet)
     # works if violation_tuples is sorted
     edges_viol = Int64[]
@@ -378,7 +488,23 @@ function get_lists_violatededgesvertices(violation_tuples::SortedSet)
     return edges_viol, verts_viol
 end
 
+"""
+    get_dykstraclusters(violation_tuples, G::Graph, edges)
 
+Cluster the cuts in `violation_tuples` such that in each cluster the vertices in the same column `f` form an independent set.
+
+# Arguments:
+- `violation_tuples::SortedSet`: Set of constraints stored in the form of tuples `(f,i) ∈ E × V`.
+- `G::Graph`: the underlying graph of the QMSTP
+- `edges`: list of edges (stored as tuple of two vertices) in `G`
+
+# Output:
+- `dykstra_clusters::Vector{Vector{Tuple{Int64, Vector{Int64}}}}`: vector containing in each position `k` one
+                    dykstra cluster as list of Tuples `(f, vertices)`, where `f` denotes the row/column of the violated cuts
+                    and `vertices` is an independet set of vertices in the underlying graph representing for each vertex `i` in
+                    `vertices`, the RLT type cut-set constraint (i,f), that is `sum(y_\{e,f\} for e ∈ δ(i)) ≥ y_f`,.
+                    For each edge `f` there is at most one entry in `dykstra_clusters[k]`.
+"""
 function get_dykstraclusters(violation_tuples, G::Graph, edges)
     edges_viol, verts_viol = get_lists_violatededgesvertices(violation_tuples)
     dykstra_clusters = Vector{Vector{Tuple{Int64, Vector{Int64}}}}()
@@ -471,7 +597,24 @@ function projection_RLT_col!(a, m, pos_f, pos_edges_adjtoverts, normalmat_col_f)
     a[pos_f] = a[m+1] = af_avg - ωi
 end
 
+"""
+    projection_RLT_cluster_k_part!(M, edges_adjtoi, dykstra_clusterk_chunk, normal_mat)
 
+Project a subset of columns of matrix `M` onto \$\\mathcal\{Y\}_\{\\mathcal\{C\}_k\} \$.
+
+The projection `X` of `M` gets stored in the matrix `M`.
+The normal matrix, that is `M - X`, is stored in `normal_mat`.
+
+# Arguments:
+- `edges_adjtoi::Vector{Vector{Int}}`: contains at position `i` a list of the edges adjacent
+                                        to the vertex `i`.
+- `dykstra_clusters_chunk::Vector{Tuple{Int64, Vector{Int64}}}`: contains a subset of
+                            `dykstra_clusters_k` which represents \$\\mathcal\{C\}_k \$.
+                            The vector `dykstra_clusters_chunk` is a list of Tuples `(f, vertices)`, where `f` denotes the column 
+                            and `vertices` is an independet set of vertices in the underlying graph representing for each vertex `i` in
+                            `vertices`, the RLT type cut-set constraint (i,f), that is `sum(y_\{e,f\} for e ∈ δ(i)) ≥ y_f`.
+                            For each edge `f` there is at most one entry in `dykstra_clusters_chunk`.
+"""
 function projection_RLT_cluster_k_part!(M, edges_adjtoi, dykstra_clusterk_chunk, normal_mat)
     mp1 = size(M, 1)
     for (f, verts_f_viol) in dykstra_clusterk_chunk
@@ -490,7 +633,24 @@ function projection_RLT_cluster_k_part!(M, edges_adjtoi, dykstra_clusterk_chunk,
     end
 end
 
+"""
+    projection_RLT_cluster_k!(M, edges_adjtoi, dykstra_cluster_k, normal_mat)
 
+Project matrix `M` onto \$\\mathcal\{Y\}_\{\\mathcal\{C\}_k\} \$.
+
+The projection `X` of `M` gets stored in the matrix `M`.
+The normal matrix, that is `M - X`, is stored in `normal_mat`.
+The projection is multithreaded over the columns. 
+
+# Arguments:
+- `edges_adjtoi::Vector{Vector{Int}}`: vector that contains at position `i` a list of the edges adjacent
+                                       to the vertex `i`.
+- `dykstra_clusters_k::Vector{Tuple{Int64, Vector{Int64}}}`: vector that represents \$\\mathcal\{C\}_k \$
+                and is a list of Tuples `(f, vertices)`, where `f` denotes the row/column of the violated cuts 
+                and `vertices` is an independet set of vertices in the underlying graph representing for each vertex `i` in
+                `vertices`, the RLT type cut-set constraint (i,f), that is `sum(y_\{e,f\} for e ∈ δ(i)) ≥ y_f`.
+                For each edge `f` there is at most one entry in `dykstra_clusters`.
+"""
 function projection_RLT_cluster_k!(M, edges_adjtoi, dykstra_cluster_k, normal_mat)
     mp1 = size(M, 1)
 
@@ -512,7 +672,29 @@ function projection_RLT_cluster_k!(M, edges_adjtoi, dykstra_cluster_k, normal_ma
     end
 end
 
+"""
+    projection_polyhedral_withviolatedRLT(M, n, edges_adjtoi, dykstra_clusters)
 
+Project `M` onto \$\\mathcal\{Y\}_\{RLT\} \$.
+
+# Arguments
+- `edges_adjtoi::Vector{Vector{Int}}`: vector is of length `n` and containing at position `i` a list of the edges adjacent
+                                        to the vertex `i`.
+- `dykstra_clusters::Vector{Vector{Tuple{Int64, Vector{Int64}}}}`: vector containing in each position `k` one
+                    dykstra cluster as list of Tuples `(f, vertices)`, where `f` denotes the row/column of the violated cuts
+                    and `vertices` is an independet set of vertices in the underlying graph representing for each vertex `i` in
+                    `vertices`, the RLT type cut-set constraint (i,f), that is `sum(y_\{e,f\} for e ∈ δ(i)) ≥ y_f`,.
+                    For each edge `f` there is at most one entry in `dykstra_clusters[k]`.
+
+## Keyword arguments:
+- `eps_error=1e-8`: Algorithm stops as soon as `norm(Xold - X) < eps_error`.
+- `trace_constraint::Bool=true`: Indicate whether the trace constraint is included in \$\\mathcal\{Y\}\$.
+- `dykstra_iterations=0`: The norm of `Xold - X` gets checked after `0.85 * dykstra_iterations` iterations.
+- `output=false`: If `output=true`, the number of Dykstra iterations is printed at the end.
+
+## Output:
+Returns the projection `X` of `M` onto \$\\mathcal\{Y\}_\{RLT\} \$ and the number of Dykstra iterations needed.
+"""
 function projection_polyhedral_withviolatedRLT(M, n, edges_adjtoi, dykstra_clusters; eps_error=1e-8, trace_constraint::Bool=true,
                                         dykstra_iterations=0, output=false)
     X = copy(Matrix(M))
@@ -547,51 +729,19 @@ end
 
 
 """
-    projection_polyhedralY_withtrace(M, n)
-
-Compute the projection of a symmetric matrix `M`
-onto the polyhedral set \$\\mathcal{Y}\$.
-
-In more detail, \$\\mathcal{Y}\$ is the set of symmetric matrices
-with entries between 0 and 1, the diagonal of the matrix equals the
-last column and the bottom right entry equals 1 and trace = n.
-"""
-function projection_polyhedralY_withtrace(M, n)
-    X = 1/2 * (M + M')
-    mp1 = size(M, 1)
-    m = mp1 - 1
-    X[end,end] = 1
-    v = 2/3 * X[1:m,end] + 1/3 * diag(X[1:m,1:m])
-    v_proj = projection_cappedsimplex(v, (n - 1))
-    for j = 1:m
-        for i = 1:(j - 1)
-            if X[i,j] < 0
-                X[i,j] = 0
-            elseif X[i,j] > 1
-                X[i,j] = 1
-            end
-        end
-        X[j,end] = v_proj[j]
-        X[j,j] = v_proj[j]
-    end
-    return Symmetric(X)
-end
-
-
-"""
     projection_cappedsimplex(y, k)
 
-    Return the projection x onto the capped simplex,
-    that is
-    \$\\arg\\min \\lVert x - y \\rVert s.t.: e^\\top x = k\$
+Return the projection x onto the capped simplex,
+that is
+\$\\arg\\min \\lVert x - y \\rVert s.t.: e^\\top x = k\$
 
-    Alorithm of
-        Weiran Wang and Canyi Lu,
-        Projection onto the Capped Simplex,
-        arXiv preprint arXiv:1503.01002, 2015
-        
-    Translation of projection.m from
-    https://github.com/canyilu/Projection-onto-the-capped-simplex
+Alorithm of
+    Weiran Wang and Canyi Lu,
+    Projection onto the Capped Simplex,
+    arXiv preprint arXiv:1503.01002, 2015
+    
+Translation of projection.m from
+https://github.com/canyilu/Projection-onto-the-capped-simplex
 """
 function projection_cappedsimplex(y, k)
     n = length(y)
@@ -643,17 +793,17 @@ end
 """
     projection_cappedsimplex_approx(y, k)
 
-    Return the approximate projection x onto the capped simplex,
-    that is
-    \$\\arg\\min \\lVert x - y \\rVert s.t.: e^\\top x = k\$
-    with an approximation error of |sum(x)-k| < eps.
-    The solution is guaranteed to be bounded by 0 and 1.
+Return the approximate projection x onto the capped simplex,
+that is
+\$\\arg\\min \\lVert x - y \\rVert s.t.: e^\\top x = k\$
+with an approximation error of `|sum(x)-k| < eps`.
+The solution is guaranteed to be bounded by 0 and 1.
 
-    Implementation of Algorithm 1 of
-        Andersen Ang, Jianzhu Ma, Nianjun Liu, Kun Huang, Yijie Wang
-        Fast Projection onto the Capped Simplex with Applications to
-        Sparse Regression in Bioinformatics,
-        Advances in Neural Information Processing Systems 34 (NeurIPS 2021) 
+Implementation of Algorithm 1 of
+    Andersen Ang, Jianzhu Ma, Nianjun Liu, Kun Huang, Yijie Wang
+    Fast Projection onto the Capped Simplex with Applications to
+    Sparse Regression in Bioinformatics,
+    Advances in Neural Information Processing Systems 34 (NeurIPS 2021) 
 """
 function projection_cappedsimplex_approx(y, k, eps=1e-12)
     n = length(y)
@@ -699,6 +849,37 @@ function projection_cappedsimplex_approx(y, k, eps=1e-12)
     return v
 end
 
+"""
+    projection_polyhedralY_withtrace(M, n)
+
+Compute the projection of a symmetric matrix `M`
+onto the polyhedral set \$\\mathcal{Y}\$.
+
+In more detail, \$\\mathcal{Y}\$ is the set of symmetric matrices
+with entries between 0 and 1, the diagonal of the matrix equals the
+last column and the bottom right entry equals 1 and trace = n.
+"""
+function projection_polyhedralY_withtrace(M, n)
+    X = 1/2 * (M + M')
+    mp1 = size(M, 1)
+    m = mp1 - 1
+    X[end,end] = 1
+    v = 2/3 * X[1:m,end] + 1/3 * diag(X[1:m,1:m])
+    v_proj = projection_cappedsimplex(v, (n - 1))
+    for j = 1:m
+        for i = 1:(j - 1)
+            if X[i,j] < 0
+                X[i,j] = 0
+            elseif X[i,j] > 1
+                X[i,j] = 1
+            end
+        end
+        X[j,end] = v_proj[j]
+        X[j,j] = v_proj[j]
+    end
+    return Symmetric(X)
+end
+
 
 """
     projection_polyhedralY(M)
@@ -732,6 +913,11 @@ onto the polyhedral set \$\\mathcal{Y}\$.
 In more detail, \$\\mathcal{Y}\$ is the set of symmetric matrices
 with entries between 0 and 1, the diagonal of the matrix equals the
 last column and the bottom right entry equals 1.
+
+## Output
+The upper triangular part of the matrix `M` after the function call
+is equal to the projection of `M` onto \$\\mathcal{Y}\$.
+The matrix `Symmetric(M)` is returned.
 """
 function projection_polyhedralY!(M)
     mp1 = size(M, 1)
@@ -771,6 +957,10 @@ end
 Compute the projection of the matrix `M`
 onto the cone of positive semidefinite
 matrices.
+
+## Output
+Returns `U::Matrix` and `v::Vector` such that
+the projection equals `U * diagm(v) * U'`.
 """
 function projection_PSD_cone(M)
     ev, U = try
@@ -795,7 +985,11 @@ end
 
 Compute the projection of the matrix `M`
 onto the cone of positive semidefinite
-matrices with trace equals `α`.
+matrices with trace equal to `α`.
+
+## Output
+Returns `U::Matrix` and `v::Vector` such that
+the projection equals `U * diagm(v) * U'`.
 """
 function projection_PSD_cone_trace(M, α)
     ev, U = try
