@@ -29,4 +29,4 @@ Further examples can be found in the folder [`examples/`](examples/) of this pro
 ### References
 This package is part of the publication
 
-Frank de Meijer, Melanie Siebenhofer, Renata Sotirov, Angelika Wiegele. (2024). _Integer Semidefinite Programming for the Quadratic Minimum Spanning Tree problem._ [Manuscript in preparation].
+Frank de Meijer, Melanie Siebenhofer, Renata Sotirov, Angelika Wiegele. (2024). _Integer Semidefinite Programming for the Quadratic Minimum Spanning Tree problem._ [Manuscript submitted for publication].
