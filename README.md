@@ -1,3 +1,5 @@
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.13950402.svg)](https://doi.org/10.5281/zenodo.13950402)
+
 # QMST.jl
 Package to compute lower bounds on the quadratic minimum spanning tree problem.
 The quadratic minimum spanning tree problem is to find a spanning tree $T$ in a graph $G$ minimizing the cost function
